@@ -100,7 +100,7 @@ def load_dataset_master(format, name, dataset_dir):
     if format.startswith('PyG-'):
         pyg_dataset_id = format.split('-', 1)[1]
         dataset_dir = osp.join(dataset_dir, pyg_dataset_id)
-        dataset_dir = f"/net/tscratch/people/plgglegeza/{name}"
+        dataset_dir = f"/net/tscratch/people/plgglegeza/data/datasets/{name}"
 
         if pyg_dataset_id == 'Actor':
             if name != 'none':
