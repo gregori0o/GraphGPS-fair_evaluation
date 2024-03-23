@@ -4,6 +4,7 @@ import os
 
 import numpy as np
 from sklearn.model_selection import KFold, StratifiedKFold, ShuffleSplit
+from sklearn.model_selection import train_test_split
 from torch_geometric.graphgym.config import cfg
 from torch_geometric.graphgym.loader import index2mask, set_dataset_attr
 
@@ -27,6 +28,8 @@ def prepare_splits(dataset):
         setup_fixed_split(dataset)
     elif split_mode == "sliced":
         setup_sliced_split(dataset)
+    elif split_mode == "fair_evaluation":
+        setup_fair_evaluation_split(dataset)
     else:
         raise ValueError(f"Unknown split mode: {split_mode}")
 
@@ -269,3 +272,37 @@ def create_cv_splits(dataset, cv_type, k, file_name):
     with open(file_name, 'w') as f:
         json.dump(splits, f)
     logging.info(f"[*] Saved newly generated CV splits by {kf} to {file_name}")
+
+def setup_fair_evaluation_split(dataset):
+    """Fair evaluation setup for cross-validation splits.
+
+    Args:
+        dataset: PyG dataset object
+        cv_type: Identifier for which sklearn fold splitter to use
+        k: how many cross-validation folds to split the dataset into
+
+    Raises:
+        IndexError: If the `split_index` is greater than or equal to `k`
+    """
+    split_index = cfg.dataset.split_index
+    split_dir = cfg.dataset.split_dir
+
+    if split_index >= 10:
+        raise IndexError(f"Specified split_index={split_index} is "
+                         f"out of range of the number of folds k={10}")
+
+    os.makedirs(split_dir, exist_ok=True)
+    save_file = os.path.join(
+        split_dir,
+        f"{dataset.name}.json"
+    )
+    if not os.path.isfile(save_file):
+        raise FileNotFoundError(f"File {save_file} not found")
+    with open(save_file) as f:
+        splits = json.load(f)
+    
+    fold = splits[int(split_index)]
+    test_ids = fold['test']
+    train_ids, val_ids = train_test_split(fold["train"], test_size=0.1)
+
+    set_dataset_splits(dataset, [train_ids, val_ids, test_ids])

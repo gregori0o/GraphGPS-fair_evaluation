@@ -100,6 +100,7 @@ def load_dataset_master(format, name, dataset_dir):
     if format.startswith('PyG-'):
         pyg_dataset_id = format.split('-', 1)[1]
         dataset_dir = osp.join(dataset_dir, pyg_dataset_id)
+        dataset_dir = f"/net/tscratch/people/plgglegeza/{name}"
 
         if pyg_dataset_id == 'Actor':
             if name != 'none':
@@ -533,9 +534,9 @@ def preformat_TUDataset(dataset_dir, name):
     Returns:
         PyG dataset object
     """
-    if name in ['DD', 'NCI1', 'ENZYMES', 'PROTEINS', 'TRIANGLES']:
+    if name in ['DD', 'NCI1', 'ENZYMES', 'PROTEINS_full', 'TRIANGLES']:
         func = None
-    elif name.startswith('IMDB-') or name == "COLLAB":
+    elif name.startswith('REDDIT-') or name.startswith('IMDB-') or name == "COLLAB":
         func = T.Constant()
     else:
         raise ValueError(f"Loading dataset '{name}' from "

@@ -4,7 +4,7 @@ import torch
 import logging
 
 import graphgps  # noqa, register custom modules
-from graphgps.agg_runs import agg_runs
+from graphgps.agg_runs import agg_runs, agg_runs_fair_evaluation
 from graphgps.optimizer.extra_optimizers import ExtendedSchedulerConfig
 
 from torch_geometric.graphgym.cmd_args import parse_args
@@ -30,6 +30,8 @@ from graphgps.logger import create_logger
 torch.backends.cuda.matmul.allow_tf32 = True  # Default False in PyTorch 1.12+
 torch.backends.cudnn.allow_tf32 = True  # Default True
 
+RUN_FAIR_EVALUATION = True
+R_EVALUATION = 3
 
 def new_optimizer_config(cfg):
     return OptimizerConfig(optimizer=cfg.optim.optimizer,
@@ -81,7 +83,7 @@ def custom_set_run_dir(cfg, run_id):
 def run_loop_settings():
     """Create main loop execution settings based on the current cfg.
 
-    Configures the main execution loop to run in one of two modes:
+    Configures the main execution loop to run in one of three modes:
     1. 'multi-seed' - Reproduces default behaviour of GraphGym when
         args.repeats controls how many times the experiment run is repeated.
         Each iteration is executed with a random seed set to an increment from
@@ -89,6 +91,9 @@ def run_loop_settings():
     2. 'multi-split' - Executes the experiment run over multiple dataset splits,
         these can be multiple CV splits or multiple standard splits. The random
         seed is reset to the initial cfg.seed value for each run iteration.
+    3. 'fair_evaluation' - Mixing the two modes above, this mode is used to
+        aggregate results from multiple runs with different random seeds and
+        dataset splits.
 
     Returns:
         List of run IDs for each loop iteration
@@ -101,6 +106,11 @@ def run_loop_settings():
         seeds = [cfg.seed + x for x in range(num_iterations)]
         split_indices = [cfg.dataset.split_index] * num_iterations
         run_ids = seeds
+    elif RUN_FAIR_EVALUATION:
+        # 'fair_evaluation' run mode
+        split_indices = sum([[x] * R_EVALUATION for x in cfg.run_multiple_splits], [])
+        seeds = [cfg.seed + x for x in range(R_EVALUATION)] * len(cfg.run_multiple_splits)
+        run_ids = [idx * 100 + seed for idx, seed in zip(split_indices, seeds)]
     else:
         # 'multi-split' run mode
         if args.repeat != 1:
@@ -167,7 +177,10 @@ if __name__ == '__main__':
                                        scheduler)
     # Aggregate results from different seeds
     try:
-        agg_runs(cfg.out_dir, cfg.metric_best)
+        if RUN_FAIR_EVALUATION:
+            agg_runs_fair_evaluation(cfg.out_dir, cfg.metric_best)
+        else:
+            agg_runs(cfg.out_dir, cfg.metric_best)
     except Exception as e:
         logging.info(f"Failed when trying to aggregate multiple runs: {e}")
     # When being launched in batch mode, mark a yaml as done

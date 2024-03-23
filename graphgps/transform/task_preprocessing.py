@@ -62,4 +62,11 @@ def task_specific_preprocessing(data, cfg):
         else:
             data.x = torch.zeros((data.num_nodes, 0))
 
+    if cfg.dataset.format == "PyG-TUDataset":
+        data.x = data.x.to(torch.int)
+        if data.edge_attr is None:
+            data.edge_attr = torch.zeros((data.edge_index.size(1), 1), dtype=torch.int)
+        else:
+            data.edge_attr = data.edge_attr.to(torch.int)
+
     return data
