@@ -19,7 +19,7 @@ vocprep/VOC/*.tgz
 vocprep/VOC/*.pickle
 vocprep/VOC/*.pkl
 vocprep/VOC/*.zip
-splits/
+# splits/
 wandb/
 __pycache__/
 .idea
