@@ -5,7 +5,7 @@ run_multiple_splits: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 name_tag: ENZYMES
 wandb:
   use: False
-  project: ENZYMES
+  project: project_name
 dataset:
   format: PyG-TUDataset
   name: ENZYMES
@@ -24,11 +24,11 @@ posenc_RWSE:
   kernel:
     times_func: range(1,17)
   model: Linear
-  dim_pe: 20
+  dim_pe: 16
   raw_norm_type: BatchNorm
 train:
   mode: custom
-  batch_size: 512
+  batch_size: 32
   eval_period: 1
   enable_ckpt: False
 model:
@@ -38,18 +38,18 @@ model:
   graph_pooling: mean
 gt:
   layer_type: CustomGatedGCN+Transformer
-  layers: 5
+  layers: 10
   n_heads: 4
-  dim_hidden: 384  # `gt.dim_hidden` must match `gnn.dim_inner`
-  dropout: 0.2
+  dim_hidden: 64  # `gt.dim_hidden` must match `gnn.dim_inner`
+  dropout: 0.05
   attn_dropout: 0.5
   layer_norm: False
   batch_norm: True
 gnn:
-  head: default  # san_graph
+  head: san_graph
   layers_pre_mp: 0
-  layers_post_mp: 1  # Not used when `gnn.head: san_graph`
-  dim_inner: 384  # `gt.dim_hidden` must match `gnn.dim_inner`
+  layers_post_mp: 3  # Not used when `gnn.head: san_graph`
+  dim_inner: 64  # `gt.dim_hidden` must match `gnn.dim_inner`
   batchnorm: True
   act: relu
   dropout: 0.0
@@ -60,7 +60,17 @@ optim:
   clip_grad_norm: True
   optimizer: adamW
   weight_decay: 1e-5
-  base_lr: 0.0005
+  base_lr: 0.0001
   max_epoch: 100
   scheduler: cosine_with_warmup
   num_warmup_epochs: 5
+#optim:
+#  clip_grad_norm: True
+#  optimizer: adamW
+#  weight_decay: 1e-5
+#  base_lr: 0.0001
+#  max_epoch: 100
+#  scheduler: reduce_on_plateau
+#  reduce_factor: 0.5
+#  schedule_patience: 5
+#  min_lr: 1e-6
