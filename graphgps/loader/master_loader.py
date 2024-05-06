@@ -1,5 +1,6 @@
 import logging
 import os.path as osp
+import os
 import time
 from functools import partial
 
@@ -99,8 +100,11 @@ def load_dataset_master(format, name, dataset_dir):
     """
     if format.startswith('PyG-'):
         pyg_dataset_id = format.split('-', 1)[1]
-        dataset_dir = osp.join(dataset_dir, pyg_dataset_id)
-        dataset_dir = f"/net/tscratch/people/plgglegeza/data/datasets/{name}"
+        # dataset_dir = osp.join(dataset_dir, pyg_dataset_id)
+        dataset_dir = f"/net/tscratch/people/plgglegeza/data/datasets_gps/{name}"
+
+        if not os.path.exists(dataset_dir):
+            os.makedirs(dataset_dir)
 
         if pyg_dataset_id == 'Actor':
             if name != 'none':

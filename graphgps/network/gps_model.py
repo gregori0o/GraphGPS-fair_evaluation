@@ -9,6 +9,22 @@ from torch_geometric.graphgym.register import register_network
 from graphgps.layer.gps_layer import GPSLayer
 
 
+atom_feature_dimmension = {
+    "COLLAB": [2],
+    "DD": [2] * 89,
+    "ENZYMES": [2] * 3,
+    "IMDB-BINARY": [2],
+    "IMDB-MULTI": [2],
+    "REDDIT-BINARY": [2],
+    "REDDIT-MULTI-5K": [2],
+    "NCI1": [2] * 37,
+    "PROTEINS_full": [2] * 3,
+    "COLLAB": [2],
+    "Web": [37534, 68],
+    "Mutagenicity": [15],
+}
+
+
 class FeatureEncoder(torch.nn.Module):
     """
     Encoding node and edge features
@@ -23,7 +39,8 @@ class FeatureEncoder(torch.nn.Module):
             # Encode integer node features via nn.Embeddings
             NodeEncoder = register.node_encoder_dict[
                 cfg.dataset.node_encoder_name]
-            self.node_encoder = NodeEncoder(cfg.gnn.dim_inner)
+            atom_dim = atom_feature_dimmension.get(cfg.dataset.name, None)
+            self.node_encoder = NodeEncoder(cfg.gnn.dim_inner, atom_dim=atom_dim)
             if cfg.dataset.node_encoder_bn:
                 self.node_encoder_bn = BatchNorm1dNode(
                     new_layer_config(cfg.gnn.dim_inner, -1, -1, has_act=False,

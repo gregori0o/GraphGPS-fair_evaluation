@@ -1,6 +1,6 @@
 import torch
 from torch_geometric.graphgym.config import cfg
-from torch_geometric.graphgym.models.encoder import AtomEncoder
+# from torch_geometric.graphgym.models.encoder import AtomEncoder
 from torch_geometric.graphgym.register import register_node_encoder
 
 from graphgps.encoder.ast_encoder import ASTNodeEncoder
@@ -14,6 +14,47 @@ from graphgps.encoder.type_dict_encoder import TypeDictNodeEncoder
 from graphgps.encoder.linear_node_encoder import LinearNodeEncoder
 from graphgps.encoder.equivstable_laplace_pos_encoder import EquivStableLapPENodeEncoder
 from graphgps.encoder.graphormer_encoder import GraphormerEncoder
+
+
+class AtomEncoder(torch.nn.Module):
+    r"""The atom encoder used in OGB molecule dataset.
+
+    Args:
+        emb_dim (int): The output embedding dimension.
+
+    Example:
+        >>> encoder = AtomEncoder(emb_dim=16)
+        >>> batch = torch.randint(0, 10, (10, 3))
+        >>> encoder(batch).size()
+        torch.Size([10, 16])
+    """
+    def __init__(self, emb_dim, *args, atom_dim=None, **kwargs):
+        super().__init__()
+
+        from ogb.utils.features import get_atom_feature_dims
+
+        if atom_dim is None:
+            atom_dim = get_atom_feature_dims()
+
+        self.atom_embedding_list = torch.nn.ModuleList()
+
+        for i, dim in enumerate(atom_dim):
+            emb = torch.nn.Embedding(dim, emb_dim)
+            torch.nn.init.xavier_uniform_(emb.weight.data)
+            self.atom_embedding_list.append(emb)
+
+    def forward(self, batch):
+        if len(self.atom_embedding_list) == 1:
+            # print("batch.x", batch.x.shape)
+            batch.x = self.atom_embedding_list[0](batch.x)
+            # print("batch.x", batch.x.shape)
+            return batch
+        encoded_features = 0
+        for i in range(batch.x.shape[1]):
+            encoded_features += self.atom_embedding_list[i](batch.x[:, i])
+
+        batch.x = encoded_features
+        return batch
 
 
 def concat_node_encoders(encoder_classes, pe_enc_names):
@@ -39,17 +80,17 @@ def concat_node_encoders(encoder_classes, pe_enc_names):
         enc2_cls = None
         enc2_name = None
 
-        def __init__(self, dim_emb):
+        def __init__(self, dim_emb, atom_dim=None):
             super().__init__()
             
             if cfg.posenc_EquivStableLapPE.enable: # Special handling for Equiv_Stable LapPE where node feats and PE are not concat
-                self.encoder1 = self.enc1_cls(dim_emb)
+                self.encoder1 = self.enc1_cls(dim_emb, atom_dim=atom_dim)
                 self.encoder2 = self.enc2_cls(dim_emb)
             else:
                 # PE dims can only be gathered once the cfg is loaded.
                 enc2_dim_pe = getattr(cfg, f"posenc_{self.enc2_name}").dim_pe
 
-                self.encoder1 = self.enc1_cls(dim_emb - enc2_dim_pe)
+                self.encoder1 = self.enc1_cls(dim_emb - enc2_dim_pe, atom_dim=atom_dim)
                 self.encoder2 = self.enc2_cls(dim_emb, expand_x=False)
 
         def forward(self, batch):
