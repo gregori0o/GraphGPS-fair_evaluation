@@ -21,7 +21,7 @@ atom_feature_dimmension = {
     "PROTEINS_full": [2] * 3,
     "COLLAB": [2],
     "Web": [37534, 68],
-    "Mutagenicity": [15],
+    "Mutagenicity": [2] * 16,
 }
 
 

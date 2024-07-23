@@ -44,11 +44,11 @@ class AtomEncoder(torch.nn.Module):
             self.atom_embedding_list.append(emb)
 
     def forward(self, batch):
-        if len(self.atom_embedding_list) == 1:
-            # print("batch.x", batch.x.shape)
-            batch.x = self.atom_embedding_list[0](batch.x)
-            # print("batch.x", batch.x.shape)
-            return batch
+        # if len(self.atom_embedding_list) == 1:
+        #     # print("batch.x", batch.x.shape)
+        #     batch.x = self.atom_embedding_list[0](batch.x)
+        #     # print("batch.x", batch.x.shape)
+        #     return batch
         encoded_features = 0
         for i in range(batch.x.shape[1]):
             encoded_features += self.atom_embedding_list[i](batch.x[:, i])

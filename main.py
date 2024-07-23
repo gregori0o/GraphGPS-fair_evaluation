@@ -135,6 +135,10 @@ if __name__ == '__main__':
     torch.set_num_threads(cfg.num_threads)
     # Repeat for multiple experiment runs
     for run_id, seed, split_index in zip(*run_loop_settings()):
+        if cfg.dataset.name == "ogbg-molhiv" and run_id < 800:
+            continue
+        if cfg.dataset.name == "REDDIT-MULTI-5K" and run_id < 802:
+            continue
         # Set configurations for each run
         custom_set_run_dir(cfg, run_id)
         set_printing()
