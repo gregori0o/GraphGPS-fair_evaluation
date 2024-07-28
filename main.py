@@ -25,6 +25,8 @@ from torch_geometric import seed_everything
 from graphgps.finetuning import load_pretrained_model_cfg, \
     init_model_from_pretrained
 from graphgps.logger import create_logger
+from time_measure import time_measure
+import numpy as np
 
 
 torch.backends.cuda.matmul.allow_tf32 = True  # Default False in PyTorch 1.12+
@@ -123,6 +125,33 @@ def run_loop_settings():
     return run_ids, seeds, split_indices
 
 
+def train_model(loaders):
+    model = create_model()
+    loggers = create_logger()
+    optimizer = create_optimizer(model.parameters(),
+                                    new_optimizer_config(cfg))
+    scheduler = create_scheduler(optimizer, new_scheduler_config(cfg))
+    train_dict[cfg.train.mode](loggers, loaders, model, optimizer,
+                                    scheduler)
+    return model
+
+
+def get_prediction(model, data_loader, split="val"):
+    model.eval()
+    list_predictions = []
+    with torch.no_grad():
+        for batch in data_loader:
+            batch.split = split
+            batch.to(torch.device(cfg.accelerator))
+            if cfg.gnn.head == 'inductive_edge':
+                pred, true, extra_stats = model(batch)
+            else:
+                pred, true = model(batch)
+            list_predictions.append(pred.detach().argmax(dim=1).cpu().numpy())
+    predictions = np.concatenate(list_predictions)
+    return predictions
+
+
 if __name__ == '__main__':
     # Load cmd line args
     args = parse_args()
@@ -147,47 +176,17 @@ if __name__ == '__main__':
         cfg.run_id = run_id
         seed_everything(cfg.seed)
         auto_select_device()
-        if cfg.pretrained.dir:
-            cfg = load_pretrained_model_cfg(cfg)
-        logging.info(f"[*] Run ID {run_id}: seed={cfg.seed}, "
-                     f"split_index={cfg.dataset.split_index}")
         logging.info(f"    Starting now: {datetime.datetime.now()}")
         # Set machine learning pipeline
         loaders = create_loader()
-        loggers = create_logger()
-        model = create_model()
-        if cfg.pretrained.dir:
-            model = init_model_from_pretrained(
-                model, cfg.pretrained.dir, cfg.pretrained.freeze_main,
-                cfg.pretrained.reset_prediction_head, seed=cfg.seed
-            )
-        optimizer = create_optimizer(model.parameters(),
-                                     new_optimizer_config(cfg))
-        scheduler = create_scheduler(optimizer, new_scheduler_config(cfg))
-        # Print model info
-        logging.info(model)
-        logging.info(cfg)
-        cfg.params = params_count(model)
-        logging.info('Num parameters: %s', cfg.params)
-        # Start training
-        if cfg.train.mode == 'standard':
-            if cfg.wandb.use:
-                logging.warning("[W] WandB logging is not supported with the "
-                                "default train.mode, set it to `custom`")
-            datamodule = GraphGymDataModule()
-            train(model, datamodule, logger=True)
-        else:
-            train_dict[cfg.train.mode](loggers, loaders, model, optimizer,
-                                       scheduler)
-    # Aggregate results from different seeds
-    try:
-        if RUN_FAIR_EVALUATION:
-            agg_runs_fair_evaluation(cfg.out_dir, cfg.metric_best)
-        else:
-            agg_runs(cfg.out_dir, cfg.metric_best)
-    except Exception as e:
-        logging.info(f"Failed when trying to aggregate multiple runs: {e}")
-    # When being launched in batch mode, mark a yaml as done
-    if args.mark_done:
-        os.rename(args.cfg_file, f'{args.cfg_file}_done')
-    logging.info(f"[*] All done: {datetime.datetime.now()}")
+        model = time_measure(
+            train_model, "gps", cfg.dataset.name, "training"
+        )(loaders)
+        
+        cfg.dataset.split_index = 10
+        eval_loader = create_loader()
+        predictions = time_measure(get_prediction, "gps", cfg.dataset.name, "evaluation")(
+            model, eval_loader
+        )
+
+        break
