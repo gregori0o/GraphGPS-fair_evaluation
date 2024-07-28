@@ -131,6 +131,7 @@ def train_model(loaders):
     optimizer = create_optimizer(model.parameters(),
                                     new_optimizer_config(cfg))
     scheduler = create_scheduler(optimizer, new_scheduler_config(cfg))
+    cfg.params = params_count(model)
     train_dict[cfg.train.mode](loggers, loaders, model, optimizer,
                                     scheduler)
     return model
@@ -182,7 +183,7 @@ if __name__ == '__main__':
         model = time_measure(
             train_model, "gps", cfg.dataset.name, "training"
         )(loaders)
-        
+
         cfg.dataset.split_index = 10
         eval_loader = create_loader()
         predictions = time_measure(get_prediction, "gps", cfg.dataset.name, "evaluation")(

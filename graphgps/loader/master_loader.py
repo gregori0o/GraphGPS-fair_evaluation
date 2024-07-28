@@ -27,6 +27,8 @@ from graphgps.transform.transforms import (pre_transform_in_memory,
                                            typecast_x, concat_x_and_pos,
                                            clip_graphs_to_size)
 
+from time_measure import time_measure
+
 
 def log_loaded_dataset(dataset, format, name):
     logging.info(f"[*] Loaded dataset '{name}' from '{format}':")
@@ -184,41 +186,45 @@ def load_dataset_master(format, name, dataset_dir):
             raise ValueError(f"Unsupported OGB(-derived) dataset: {name}")
     else:
         raise ValueError(f"Unknown data format: {format}")
+    
+    def prepare_dataset():
+        pre_transform_in_memory(dataset, partial(task_specific_preprocessing, cfg=cfg))
 
-    pre_transform_in_memory(dataset, partial(task_specific_preprocessing, cfg=cfg))
+        log_loaded_dataset(dataset, format, name)
 
-    log_loaded_dataset(dataset, format, name)
+        # Precompute necessary statistics for positional encodings.
+        pe_enabled_list = []
+        for key, pecfg in cfg.items():
+            if key.startswith('posenc_') and pecfg.enable:
+                pe_name = key.split('_', 1)[1]
+                pe_enabled_list.append(pe_name)
+                if hasattr(pecfg, 'kernel'):
+                    # Generate kernel times if functional snippet is set.
+                    if pecfg.kernel.times_func:
+                        pecfg.kernel.times = list(eval(pecfg.kernel.times_func))
+                    logging.info(f"Parsed {pe_name} PE kernel times / steps: "
+                                f"{pecfg.kernel.times}")
+        if pe_enabled_list:
+            start = time.perf_counter()
+            logging.info(f"Precomputing Positional Encoding statistics: "
+                        f"{pe_enabled_list} for all graphs...")
+            # Estimate directedness based on 10 graphs to save time.
+            is_undirected = all(d.is_undirected() for d in dataset[:10])
+            logging.info(f"  ...estimated to be undirected: {is_undirected}")
+            pre_transform_in_memory(dataset,
+                                    partial(compute_posenc_stats,
+                                            pe_types=pe_enabled_list,
+                                            is_undirected=is_undirected,
+                                            cfg=cfg),
+                                    show_progress=True
+                                    )
+            elapsed = time.perf_counter() - start
+            timestr = time.strftime('%H:%M:%S', time.gmtime(elapsed)) \
+                    + f'{elapsed:.2f}'[-3:]
+            logging.info(f"Done! Took {timestr}")
 
-    # Precompute necessary statistics for positional encodings.
-    pe_enabled_list = []
-    for key, pecfg in cfg.items():
-        if key.startswith('posenc_') and pecfg.enable:
-            pe_name = key.split('_', 1)[1]
-            pe_enabled_list.append(pe_name)
-            if hasattr(pecfg, 'kernel'):
-                # Generate kernel times if functional snippet is set.
-                if pecfg.kernel.times_func:
-                    pecfg.kernel.times = list(eval(pecfg.kernel.times_func))
-                logging.info(f"Parsed {pe_name} PE kernel times / steps: "
-                             f"{pecfg.kernel.times}")
-    if pe_enabled_list:
-        start = time.perf_counter()
-        logging.info(f"Precomputing Positional Encoding statistics: "
-                     f"{pe_enabled_list} for all graphs...")
-        # Estimate directedness based on 10 graphs to save time.
-        is_undirected = all(d.is_undirected() for d in dataset[:10])
-        logging.info(f"  ...estimated to be undirected: {is_undirected}")
-        pre_transform_in_memory(dataset,
-                                partial(compute_posenc_stats,
-                                        pe_types=pe_enabled_list,
-                                        is_undirected=is_undirected,
-                                        cfg=cfg),
-                                show_progress=True
-                                )
-        elapsed = time.perf_counter() - start
-        timestr = time.strftime('%H:%M:%S', time.gmtime(elapsed)) \
-                  + f'{elapsed:.2f}'[-3:]
-        logging.info(f"Done! Took {timestr}")
+    # prepare_dataset()
+    time_measure(prepare_dataset, "gps", cfg.dataset.name, "preparation")()
 
     # Set standard dataset train/val/test splits
     if hasattr(dataset, 'split_idxs'):
